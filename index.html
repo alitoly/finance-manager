@@ -2118,11 +2118,18 @@
     }
 
     // ============================================================
-    //  PERSISTENCE — SUPABASE (finance_state)
+    //  PERSISTENCE — localStorage + Supabase cloud sync
     // ============================================================
     let saveTimer = null;
 
     function save() {
+      // Always save to localStorage immediately (never lose data)
+      try {
+        localStorage.setItem('mf_state', JSON.stringify(state));
+      } catch (e) {
+        console.warn('localStorage save failed:', e);
+      }
+      // Debounce cloud sync
       clearTimeout(saveTimer);
       setSyncStatus('saving', 'Saving…');
       saveTimer = setTimeout(() => saveToCloud(), 800);
@@ -2135,7 +2142,11 @@
           state_data: state
         };
         const { error } = await db.from('finance_state').upsert(payload);
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase save error:', error.message, error);
+          setSyncStatus('err', 'Sync error');
+          return;
+        }
         setSyncStatus('ok', 'Synced');
       } catch (e) {
         console.error('Cloud save error:', e);
@@ -2152,19 +2163,48 @@
     }
 
     async function load() {
+      let loadedFromCloud = false;
+
+      // 1. Try loading from Supabase cloud
       try {
         const { data: row, error } = await db.from('finance_state').select('*').eq('id', 'user').single();
-        if (!error && row && row.state_data) {
+        if (error) {
+          console.warn('Supabase load error:', error.message, error);
+        } else if (row && row.state_data) {
           state = { ...state, ...row.state_data };
           if (!state.categories || !state.categories.length) state.categories = DEFAULT_CATEGORIES;
-        } else {
-          state.categories = DEFAULT_CATEGORIES;
+          // Ensure any new default categories are added
+          const existingIds = new Set(state.categories.map(c => c.id));
+          DEFAULT_CATEGORIES.forEach(dc => {
+            if (!existingIds.has(dc.id)) state.categories.push(dc);
+          });
+          loadedFromCloud = true;
+          setSyncStatus('ok', 'Synced');
+          // Update localStorage with cloud data
+          try { localStorage.setItem('mf_state', JSON.stringify(state)); } catch (e) { }
         }
-        setSyncStatus('ok', 'Synced');
       } catch (e) {
         console.error('Cloud load failed:', e);
-        setSyncStatus('err', 'Offline');
-        state.categories = DEFAULT_CATEGORIES;
+      }
+
+      // 2. If cloud failed, fall back to localStorage
+      if (!loadedFromCloud) {
+        console.log('Falling back to localStorage…');
+        const raw = localStorage.getItem('mf_state');
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            state = { ...state, ...parsed };
+            if (!state.categories || !state.categories.length) state.categories = DEFAULT_CATEGORIES;
+            setSyncStatus('err', 'Local only');
+          } catch (e2) {
+            console.error('localStorage parse error:', e2);
+            state.categories = DEFAULT_CATEGORIES;
+          }
+        } else {
+          state.categories = DEFAULT_CATEGORIES;
+          setSyncStatus('err', 'No data');
+        }
       }
     }
 
@@ -2827,6 +2867,7 @@
       if (!confirm('Last warning — this cannot be undone. Continue?')) return;
       try {
         await db.from('finance_state').delete().eq('id', 'user');
+        localStorage.removeItem('mf_state');
         location.reload();
       } catch (e) {
         toast('Error clearing cloud data', 'error');
