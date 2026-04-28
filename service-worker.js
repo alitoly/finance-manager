@@ -1,7 +1,7 @@
 const CACHE_NAME = 'moneyflow-v1';
 const ASSETS = [
   '/',
-  '/finance-manager.html',
+  '/index.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png'

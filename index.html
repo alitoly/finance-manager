@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>MoneyFlow — Personal Finance Manager</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Mono:wght@300;400;500&family=Sora:wght@300;400;500;600&display=swap"
@@ -1138,6 +1138,12 @@
       background: currentColor;
     }
 
+    /* ======= MOBILE BOTTOM TAB BAR ======= */
+    .mobile-tab-bar {
+      display: none;
+    }
+
+    /* ======= RESPONSIVE — TABLET (≤ 900px) ======= */
     @media (max-width: 900px) {
       .sidebar {
         width: 60px;
@@ -1188,6 +1194,388 @@
 
       .cat-grid {
         grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* ======= RESPONSIVE — MOBILE / iPhone 15 Pro (≤ 480px) ======= */
+    @media (max-width: 480px) {
+
+      /* Safe area insets for iPhone notch / Dynamic Island */
+      html {
+        padding-top: env(safe-area-inset-top);
+      }
+
+      body {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+        padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+      }
+
+      /* Hide sidebar entirely on mobile */
+      .sidebar {
+        display: none !important;
+      }
+
+      /* Main content takes full width */
+      .main {
+        margin-left: 0 !important;
+        padding: 16px 16px 24px;
+        min-height: calc(100vh - 68px);
+      }
+
+      /* Show bottom tab bar */
+      .mobile-tab-bar {
+        display: flex !important;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: calc(68px + env(safe-area-inset-bottom, 0px));
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        z-index: 200;
+        align-items: stretch;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        background: rgba(17, 24, 39, 0.92);
+      }
+
+      .tab-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        color: var(--text3);
+        font-size: 10px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: color 0.2s;
+        padding: 8px 0;
+        -webkit-tap-highlight-color: transparent;
+        position: relative;
+      }
+
+      .tab-item .tab-icon {
+        font-size: 22px;
+        line-height: 1;
+      }
+
+      .tab-item.active {
+        color: var(--gold);
+      }
+
+      .tab-item.active::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 28px;
+        height: 2px;
+        background: var(--gold);
+        border-radius: 0 0 4px 4px;
+      }
+
+      /* PAGE HEADER — Mobile */
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+
+      .page-header h2 {
+        font-size: 22px;
+      }
+
+      .page-header p {
+        font-size: 12px;
+      }
+
+      .page-header .flex.gap-2 {
+        width: 100%;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .page-header .flex.gap-2 select {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .page-header .flex.gap-2 .btn {
+        width: 100%;
+        justify-content: center;
+        white-space: nowrap;
+      }
+
+      /* STAT CARDS — 2 column grid on mobile */
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+
+      .stat-card {
+        padding: 14px 14px;
+      }
+
+      .stat-label {
+        font-size: 9px;
+        margin-bottom: 6px;
+      }
+
+      .stat-value {
+        font-size: 16px;
+      }
+
+      .stat-sub {
+        font-size: 9px;
+        margin-top: 4px;
+      }
+
+      .stat-icon {
+        font-size: 22px;
+        bottom: 10px;
+        right: 10px;
+      }
+
+      /* CHARTS — single column */
+      .charts-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .chart-wide {
+        grid-column: span 1;
+      }
+
+      .chart-box {
+        padding: 16px 12px;
+      }
+
+      .chart-box canvas {
+        max-height: 220px;
+      }
+
+      /* CARDS */
+      .card {
+        padding: 16px;
+        border-radius: 12px;
+      }
+
+      .card-title {
+        font-size: 10px;
+        margin-bottom: 12px;
+      }
+
+      /* FORMS */
+      .form-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .form-group.full {
+        grid-column: span 1;
+      }
+
+      .form-group input,
+      .form-group select,
+      .form-group textarea {
+        padding: 12px 14px;
+        font-size: 16px;
+        border-radius: 10px;
+      }
+
+      /* TYPE TOGGLE */
+      .type-toggle button {
+        font-size: 12px;
+        padding: 10px 4px;
+      }
+
+      /* FILTER BAR */
+      .filter-bar {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .filter-bar input,
+      .filter-bar select {
+        width: 100%;
+        min-width: 0;
+        font-size: 14px;
+      }
+
+      .filter-bar input {
+        flex: none;
+      }
+
+      /* TABLE — Mobile scrollable */
+      .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -16px;
+        padding: 0 16px;
+      }
+
+      table {
+        min-width: 600px;
+      }
+
+      th {
+        font-size: 9px;
+        padding: 8px 10px;
+        white-space: nowrap;
+      }
+
+      td {
+        padding: 10px 10px;
+        font-size: 12px;
+      }
+
+      .amount-cell {
+        font-size: 12px;
+      }
+
+      .type-badge {
+        font-size: 10px;
+        padding: 2px 8px;
+      }
+
+      /* ANALYTICS */
+      .analytics-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      /* CATEGORIES */
+      .cat-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+
+      .cat-item {
+        padding: 12px;
+      }
+
+      /* MODAL */
+      .modal {
+        padding: 20px 16px;
+        width: 100%;
+        max-width: 100vw;
+        border-radius: 20px 20px 0 0;
+        max-height: 85vh;
+      }
+
+      .modal-overlay.open {
+        align-items: flex-end;
+      }
+
+      .modal .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .modal .form-group.full {
+        grid-column: span 1;
+      }
+
+      /* BUTTONS */
+      .btn {
+        padding: 11px 18px;
+        font-size: 13px;
+        border-radius: 10px;
+      }
+
+      .btn-sm {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+
+      /* MONTH SELECT ROW */
+      .month-select-row {
+        flex-wrap: wrap;
+      }
+
+      .month-select-row select {
+        flex: 1;
+        min-width: 0;
+        font-size: 14px;
+      }
+
+      /* TOAST */
+      .toast {
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+        right: 16px;
+        left: 16px;
+        max-width: none;
+      }
+
+      /* TIMELINE */
+      .timeline-summary {
+        gap: 10px;
+        flex-direction: column;
+      }
+
+      .timeline-stat {
+        font-size: 11px;
+      }
+
+      /* BALANCE TIMELINE */
+      #balance-timeline-wrap .card-title {
+        font-size: 10px;
+      }
+
+      /* FIXED BILLS */
+      .bill-row {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px 0;
+      }
+
+      .bill-day {
+        min-width: auto;
+      }
+
+      .bill-add-row {
+        flex-direction: column;
+      }
+
+      .bill-add-row input {
+        width: 100%;
+      }
+
+      .bill-add-row .btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      /* SETTINGS page cards */
+      .card[style*="max-width:580px"] {
+        max-width: 100% !important;
+      }
+
+      /* Empty state */
+      .empty-state {
+        padding: 40px 16px;
+      }
+
+      .empty-state .emoji {
+        font-size: 36px;
+      }
+
+      /* Sync badge */
+      .sync-badge {
+        font-size: 10px;
+        padding: 3px 8px;
+      }
+
+      /* Scrollbar — hide on mobile for cleaner look */
+      ::-webkit-scrollbar {
+        display: none;
       }
     }
   </style>
@@ -1252,6 +1640,30 @@
         </div>
       </div>
     </aside>
+
+    <!-- MOBILE TAB BAR -->
+    <nav class="mobile-tab-bar" id="mobile-tab-bar">
+      <div class="tab-item active" data-page="dashboard" onclick="showPage('dashboard')">
+        <span class="tab-icon">📊</span>
+        <span>Home</span>
+      </div>
+      <div class="tab-item" data-page="add" onclick="showPage('add')">
+        <span class="tab-icon">➕</span>
+        <span>Add</span>
+      </div>
+      <div class="tab-item" data-page="transactions" onclick="showPage('transactions')">
+        <span class="tab-icon">📋</span>
+        <span>History</span>
+      </div>
+      <div class="tab-item" data-page="analytics" onclick="showPage('analytics')">
+        <span class="tab-icon">📈</span>
+        <span>Analytics</span>
+      </div>
+      <div class="tab-item" data-page="settings" onclick="showPage('settings')">
+        <span class="tab-icon">⚙️</span>
+        <span>Settings</span>
+      </div>
+    </nav>
 
     <!-- MAIN CONTENT -->
     <main class="main">
@@ -1766,6 +2178,12 @@
       document.querySelectorAll('.nav-item').forEach(n => {
         if (n.getAttribute('onclick') && n.getAttribute('onclick').includes(name)) n.classList.add('active');
       });
+      // Mobile tab bar active state
+      document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+      const activeTab = document.querySelector(`.tab-item[data-page="${name}"]`);
+      if (activeTab) activeTab.classList.add('active');
+      // Scroll to top on page change (native app feel)
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       if (name === 'dashboard') renderDashboard();
       if (name === 'transactions') renderTransactions();
       if (name === 'analytics') renderAnalytics();
