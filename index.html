@@ -2137,13 +2137,19 @@
 
     async function saveToCloud() {
       try {
-        const payload = {
+        // Save settings (categories, budgets, fixedBills, settings) as one JSON blob
+        const settingsPayload = {
           id: 'user',
-          state_data: state
+          data: {
+            categories: state.categories,
+            settings: state.settings,
+            budgets: state.budgets,
+            fixedBills: state.fixedBills
+          }
         };
-        const { error } = await db.from('finance_state').upsert(payload);
-        if (error) {
-          console.error('Supabase save error:', error.message, error);
+        const { error: sErr } = await db.from('settings').upsert(settingsPayload);
+        if (sErr) {
+          console.error('Supabase settings save error:', sErr.message, sErr);
           setSyncStatus('err', 'Sync error');
           return;
         }
@@ -2155,11 +2161,38 @@
     }
 
     async function saveTransactionToCloud(tx) {
-      saveToCloud();
+      try {
+        const row = {
+          id: tx.id,
+          type: tx.type,
+          amount: tx.amount,
+          category: tx.category,
+          date: tx.date,
+          source: tx.source || '',
+          notes: tx.notes || '',
+          tags: (tx.tags || []).join(','),
+          created_at: new Date().toISOString()
+        };
+        const { error } = await db.from('transactions').upsert(row);
+        if (error) {
+          console.error('Transaction save error:', error.message, error);
+          setSyncStatus('err', 'Sync error');
+          return;
+        }
+        setSyncStatus('ok', 'Synced');
+      } catch (e) {
+        console.error('Transaction cloud save error:', e);
+        setSyncStatus('err', 'Offline');
+      }
     }
 
     async function deleteTransactionFromCloud(id) {
-      saveToCloud();
+      try {
+        const { error } = await db.from('transactions').delete().eq('id', id);
+        if (error) console.error('Cloud delete error:', error.message);
+      } catch (e) {
+        console.error('Cloud delete error:', e);
+      }
     }
 
     async function load() {
@@ -2167,22 +2200,40 @@
 
       // 1. Try loading from Supabase cloud
       try {
-        const { data: row, error } = await db.from('finance_state').select('*').eq('id', 'user').single();
-        if (error) {
-          console.warn('Supabase load error:', error.message, error);
-        } else if (row && row.state_data) {
-          state = { ...state, ...row.state_data };
-          if (!state.categories || !state.categories.length) state.categories = DEFAULT_CATEGORIES;
-          // Ensure any new default categories are added
+        // Load settings
+        const { data: settingsRow, error: sErr } = await db.from('settings').select('*').eq('id', 'user').single();
+        if (!sErr && settingsRow && settingsRow.data) {
+          const d = settingsRow.data;
+          state.categories = d.categories && d.categories.length ? d.categories : DEFAULT_CATEGORIES;
+          state.settings = d.settings || state.settings;
+          state.budgets = d.budgets || {};
+          state.fixedBills = d.fixedBills || [];
+          // Add any missing new default categories
           const existingIds = new Set(state.categories.map(c => c.id));
           DEFAULT_CATEGORIES.forEach(dc => {
             if (!existingIds.has(dc.id)) state.categories.push(dc);
           });
-          loadedFromCloud = true;
-          setSyncStatus('ok', 'Synced');
-          // Update localStorage with cloud data
-          try { localStorage.setItem('mf_state', JSON.stringify(state)); } catch (e) { }
         }
+
+        // Load transactions
+        const { data: txRows, error: tErr } = await db.from('transactions').select('*').order('date', { ascending: false });
+        if (!tErr && txRows) {
+          state.transactions = txRows.map(r => ({
+            id: r.id,
+            type: r.type,
+            amount: parseFloat(r.amount),
+            category: r.category,
+            date: r.date,
+            source: r.source || '',
+            notes: r.notes || '',
+            tags: r.tags ? r.tags.split(',').filter(Boolean) : []
+          }));
+        }
+
+        loadedFromCloud = true;
+        setSyncStatus('ok', 'Synced');
+        // Update localStorage with cloud data
+        try { localStorage.setItem('mf_state', JSON.stringify(state)); } catch (e) { }
       } catch (e) {
         console.error('Cloud load failed:', e);
       }
@@ -2866,7 +2917,8 @@
       if (!confirm('⚠️ This will delete ALL transactions and settings from the cloud. Are you sure?')) return;
       if (!confirm('Last warning — this cannot be undone. Continue?')) return;
       try {
-        await db.from('finance_state').delete().eq('id', 'user');
+        await db.from('transactions').delete().neq('id', '__none__');
+        await db.from('settings').delete().eq('id', 'user');
         localStorage.removeItem('mf_state');
         location.reload();
       } catch (e) {
