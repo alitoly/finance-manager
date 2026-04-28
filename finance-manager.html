@@ -11,9 +11,17 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="manifest" href="manifest.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="MoneyFlow" />
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js');
+      });
+    }
+  </script>
   <style>
     :root {
       --bg: #0a0e1a;
@@ -1698,14 +1706,11 @@
     }
 
     // ============================================================
-    //  PERSISTENCE — SUPABASE
+    //  PERSISTENCE — SUPABASE (finance_state)
     // ============================================================
     let saveTimer = null;
 
     function save() {
-      // Always keep localStorage as offline fallback
-      localStorage.setItem('mf_state', JSON.stringify(state));
-      // Debounce cloud saves to avoid hammering on rapid edits
       clearTimeout(saveTimer);
       setSyncStatus('saving', 'Saving…');
       saveTimer = setTimeout(() => saveToCloud(), 800);
@@ -1713,18 +1718,12 @@
 
     async function saveToCloud() {
       try {
-        // Save settings (categories, budgets, fixedBills, settings) as one JSON blob
-        const settingsPayload = {
+        const payload = {
           id: 'user',
-          data: {
-            categories: state.categories,
-            settings: state.settings,
-            budgets: state.budgets,
-            fixedBills: state.fixedBills
-          }
+          state_data: state
         };
-        const { error: sErr } = await db.from('settings').upsert(settingsPayload);
-        if (sErr) throw sErr;
+        const { error } = await db.from('finance_state').upsert(payload);
+        if (error) throw error;
         setSyncStatus('ok', 'Synced');
       } catch (e) {
         console.error('Cloud save error:', e);
@@ -1733,142 +1732,27 @@
     }
 
     async function saveTransactionToCloud(tx) {
-      try {
-        const row = {
-          id: tx.id,
-          type: tx.type,
-          amount: tx.amount,
-          category: tx.category,
-          date: tx.date,
-          source: tx.source || '',
-          notes: tx.notes || '',
-          tags: (tx.tags || []).join(','),
-          created_at: new Date().toISOString()
-        };
-        const { error } = await db.from('transactions').upsert(row);
-        if (error) throw error;
-        setSyncStatus('ok', 'Synced');
-      } catch (e) {
-        console.error('Transaction cloud save error:', e);
-        setSyncStatus('err', 'Offline');
-      }
+      saveToCloud();
     }
 
     async function deleteTransactionFromCloud(id) {
-      try {
-        const { error } = await db.from('transactions').delete().eq('id', id);
-        if (error) throw error;
-      } catch (e) {
-        console.error('Cloud delete error:', e);
-      }
+      saveToCloud();
     }
 
     async function load() {
       try {
-        // Load settings
-        const { data: settingsRow, error: sErr } = await db.from('settings').select('*').eq('id', 'user').single();
-        if (!sErr && settingsRow && settingsRow.data) {
-          const d = settingsRow.data;
-          state.categories = d.categories && d.categories.length ? d.categories : DEFAULT_CATEGORIES;
-          state.settings = d.settings || state.settings;
-          state.budgets = d.budgets || {};
-          state.fixedBills = d.fixedBills || [];
-          // Add any missing new default categories
-          const existingIds = new Set(state.categories.map(c => c.id));
-          DEFAULT_CATEGORIES.forEach(dc => {
-            if (!existingIds.has(dc.id)) state.categories.push(dc);
-          });
+        const { data: row, error } = await db.from('finance_state').select('*').eq('id', 'user').single();
+        if (!error && row && row.state_data) {
+          state = { ...state, ...row.state_data };
+          if (!state.categories || !state.categories.length) state.categories = DEFAULT_CATEGORIES;
         } else {
           state.categories = DEFAULT_CATEGORIES;
-        }
-
-        // Load transactions
-        const { data: txRows, error: tErr } = await db.from('transactions').select('*').order('date', { ascending: false });
-        if (!tErr && txRows) {
-          state.transactions = txRows.map(r => ({
-            id: r.id,
-            type: r.type,
-            amount: parseFloat(r.amount),
-            category: r.category,
-            date: r.date,
-            source: r.source || '',
-            notes: r.notes || '',
-            tags: r.tags ? r.tags.split(',').filter(Boolean) : []
-          }));
         }
         setSyncStatus('ok', 'Synced');
       } catch (e) {
-        console.error('Cloud load failed, falling back to localStorage:', e);
-        setSyncStatus('err', 'Offline — local data');
-        // Fallback to localStorage
-        const raw = localStorage.getItem('mf_state');
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            state = { ...state, ...parsed };
-            if (!state.categories || !state.categories.length) state.categories = DEFAULT_CATEGORIES;
-          } catch (e2) { state.categories = DEFAULT_CATEGORIES; }
-        } else {
-          state.categories = DEFAULT_CATEGORIES;
-        }
-      }
-    }
-
-    // ============================================================
-    //  MIGRATION — localStorage → Supabase
-    // ============================================================
-    async function migrateFromLocalStorage() {
-      const raw = localStorage.getItem('mf_state');
-      const statusEl = document.getElementById('migrate-status');
-      if (!raw) {
-        statusEl.textContent = '⚠️ No local data found to migrate.';
-        return;
-      }
-      let parsed;
-      try { parsed = JSON.parse(raw); } catch (e) {
-        statusEl.textContent = '❌ Could not read local data.';
-        return;
-      }
-      statusEl.textContent = '⏳ Migrating…';
-      try {
-        // Migrate transactions
-        if (parsed.transactions && parsed.transactions.length) {
-          const rows = parsed.transactions.map(t => ({
-            id: t.id,
-            type: t.type,
-            amount: t.amount,
-            category: t.category,
-            date: t.date,
-            source: t.source || '',
-            notes: t.notes || '',
-            tags: (t.tags || []).join(','),
-            created_at: new Date().toISOString()
-          }));
-          const { error } = await db.from('transactions').upsert(rows);
-          if (error) throw error;
-        }
-        // Migrate settings
-        const settingsPayload = {
-          id: 'user',
-          data: {
-            categories: parsed.categories || DEFAULT_CATEGORIES,
-            settings: parsed.settings || {},
-            budgets: parsed.budgets || {},
-            fixedBills: parsed.fixedBills || []
-          }
-        };
-        const { error: sErr } = await db.from('settings').upsert(settingsPayload);
-        if (sErr) throw sErr;
-
-        statusEl.style.color = 'var(--green)';
-        statusEl.textContent = `✅ Done! Migrated ${(parsed.transactions || []).length} transactions to cloud.`;
-        toast('✓ Migration complete! Your data is now in the cloud.');
-        // Reload from cloud to confirm
-        setTimeout(() => location.reload(), 1500);
-      } catch (e) {
-        console.error('Migration error:', e);
-        statusEl.style.color = 'var(--red)';
-        statusEl.textContent = '❌ Migration failed. Check console.';
+        console.error('Cloud load failed:', e);
+        setSyncStatus('err', 'Offline');
+        state.categories = DEFAULT_CATEGORIES;
       }
     }
 
@@ -2524,9 +2408,7 @@
       if (!confirm('⚠️ This will delete ALL transactions and settings from the cloud. Are you sure?')) return;
       if (!confirm('Last warning — this cannot be undone. Continue?')) return;
       try {
-        await db.from('transactions').delete().neq('id', '__none__');
-        await db.from('settings').delete().eq('id', 'user');
-        localStorage.removeItem('mf_state');
+        await db.from('finance_state').delete().eq('id', 'user');
         location.reload();
       } catch (e) {
         toast('Error clearing cloud data', 'error');
