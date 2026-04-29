@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=0.85, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>MoneyFlow — Personal Finance Manager</title>
   <link
     href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Mono:wght@300;400;500&family=Sora:wght@300;400;500;600&display=swap"
@@ -431,6 +431,33 @@
 
     .chart-box canvas {
       max-height: 280px;
+    }
+
+    /* SCROLLABLE CHARTS */
+    .chart-scroll-wrap {
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      cursor: grab;
+      padding-bottom: 6px;
+    }
+
+    .chart-scroll-wrap:active {
+      cursor: grabbing;
+    }
+
+    .chart-scroll-wrap canvas {
+      display: block;
+      height: 240px !important;
+      max-height: none !important;
+    }
+
+    .chart-scroll-hint {
+      text-align: center;
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 6px;
+      letter-spacing: 0.5px;
     }
 
     /* FORMS */
@@ -1691,12 +1718,18 @@
               <div class="card-title" style="margin-bottom:0">📉 Balance Timeline</div>
               <span style="font-size:10px;color:var(--text3);font-weight:400">Pay Cycle: 23rd → 22nd</span>
             </div>
-            <canvas id="balanceTimelineChart"></canvas>
+            <div class="chart-scroll-wrap" id="balanceChart-scroll">
+              <canvas id="balanceTimelineChart"></canvas>
+            </div>
+            <div class="chart-scroll-hint">← swipe to scroll →</div>
             <div class="timeline-summary" id="timeline-summary"></div>
           </div>
           <div class="chart-box chart-wide">
             <div class="card-title">📅 Monthly Income vs Expenses (Last 6 Months)</div>
-            <canvas id="barChart"></canvas>
+            <div class="chart-scroll-wrap" id="barChart-scroll">
+              <canvas id="barChart"></canvas>
+            </div>
+            <div class="chart-scroll-hint">← swipe to scroll →</div>
           </div>
           <div class="chart-box">
             <div class="card-title">🍩 Expense Breakdown by Category</div>
@@ -1854,7 +1887,10 @@
 
         <div class="chart-box" style="margin-bottom:20px">
           <div class="card-title">📅 Daily Spending — Selected Month</div>
-          <canvas id="dailyChart"></canvas>
+          <div class="chart-scroll-wrap" id="dailyChart-scroll">
+            <canvas id="dailyChart"></canvas>
+          </div>
+          <div class="chart-scroll-hint">← swipe to scroll →</div>
         </div>
 
         <div class="analytics-grid">
@@ -2397,7 +2433,14 @@
       const savings = months.map(m => state.transactions.filter(t => t.type === 'savings' && monthKey(t.date) === m).reduce((a, t) => a + t.amount, 0));
 
       if (charts.bar) charts.bar.destroy();
-      const ctx = document.getElementById('barChart').getContext('2d');
+      const canvas = document.getElementById('barChart');
+      const wrap = document.getElementById('barChart-scroll');
+      const minW = Math.max(wrap ? wrap.clientWidth : 300, months.length * 90);
+      canvas.style.width = minW + 'px';
+      canvas.width = minW;
+      canvas.style.height = '240px';
+      canvas.height = 240;
+      const ctx = canvas.getContext('2d');
       charts.bar = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -2409,7 +2452,10 @@
           ]
         },
         options: {
-          responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: {
+          responsive: false,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: '#94a3b8' } } },
+          scales: {
             x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.04)' } },
             y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.04)' } }
           }
@@ -2764,7 +2810,14 @@
       });
 
       if (charts.daily) charts.daily.destroy();
-      const dc = document.getElementById('dailyChart').getContext('2d');
+      const dailyCanvas = document.getElementById('dailyChart');
+      const dailyWrap = document.getElementById('dailyChart-scroll');
+      const dailyMinW = Math.max(dailyWrap ? dailyWrap.clientWidth : 300, daysInMonth * 28);
+      dailyCanvas.style.width = dailyMinW + 'px';
+      dailyCanvas.width = dailyMinW;
+      dailyCanvas.style.height = '240px';
+      dailyCanvas.height = 240;
+      const dc = dailyCanvas.getContext('2d');
       charts.daily = new Chart(dc, {
         type: 'bar',
         data: {
@@ -2775,7 +2828,8 @@
           ]
         },
         options: {
-          responsive: true,
+          responsive: false,
+          maintainAspectRatio: false,
           plugins: { legend: { labels: { color: '#94a3b8' } } },
           scales: { x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.04)' } }, y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.04)' } } }
         }
@@ -3142,7 +3196,14 @@
       });
 
       if (charts.timeline) charts.timeline.destroy();
-      const ctx = document.getElementById('balanceTimelineChart').getContext('2d');
+      const tlCanvas = document.getElementById('balanceTimelineChart');
+      const tlWrap = document.getElementById('balanceChart-scroll');
+      const tlMinW = Math.max(tlWrap ? tlWrap.clientWidth : 300, labels.length * 22);
+      tlCanvas.style.width = tlMinW + 'px';
+      tlCanvas.width = tlMinW;
+      tlCanvas.style.height = '240px';
+      tlCanvas.height = 240;
+      const ctx = tlCanvas.getContext('2d');
 
       // Gradient fill under the line
       const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -3169,7 +3230,8 @@
           }]
         },
         options: {
-          responsive: true,
+          responsive: false,
+          maintainAspectRatio: false,
           interaction: { intersect: false, mode: 'index' },
           plugins: {
             legend: { display: false },
@@ -3345,7 +3407,27 @@
       renderDashboard();
     }
 
+    // ============================================================
+    //  TOUCH DRAG SCROLL FOR CHART WRAPPERS
+    // ============================================================
+    function enableDragScroll(el) {
+      if (!el) return;
+      let isDown = false, startX, scrollLeft;
+      el.addEventListener('mousedown', e => { isDown = true; el.classList.add('active'); startX = e.pageX - el.offsetLeft; scrollLeft = el.scrollLeft; });
+      el.addEventListener('mouseleave', () => { isDown = false; });
+      el.addEventListener('mouseup', () => { isDown = false; });
+      el.addEventListener('mousemove', e => { if (!isDown) return; e.preventDefault(); const x = e.pageX - el.offsetLeft; el.scrollLeft = scrollLeft - (x - startX); });
+    }
+
+    // Init drag scroll on all chart wrappers after each render
+    function initChartScrolls() {
+      ['barChart-scroll', 'balanceChart-scroll', 'dailyChart-scroll'].forEach(id => {
+        enableDragScroll(document.getElementById(id));
+      });
+    }
+
     init();
+    setTimeout(initChartScrolls, 500);
   </script>
 </body>
 
