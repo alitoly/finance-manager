@@ -3391,20 +3391,37 @@
     //  INIT
     // ============================================================
     async function init() {
-      await load();
+      // 1. Load from localStorage immediately — instant
+      const raw = localStorage.getItem('mf_state');
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          state = { ...state, ...parsed };
+          if (!state.categories?.length) state.categories = DEFAULT_CATEGORIES;
+        } catch (e) { state.categories = DEFAULT_CATEGORIES; }
+      } else {
+        state.categories = DEFAULT_CATEGORIES;
+      }
 
-      // Hide loading overlay
+      // 2. Hide loading screen and show the app right away
       const overlay = document.getElementById('loading-overlay');
       overlay.classList.add('hidden');
       setTimeout(() => overlay.remove(), 500);
 
-      // Set today's date on add form
       document.getElementById('t-date').value = new Date().toISOString().slice(0, 10);
-
-      // Load settings into form type
       populateCategorySelect('t-category', 'income');
       populateMonthDropdowns();
       renderDashboard();
+
+      // 3. Sync with Supabase silently in the background
+      setSyncStatus('saving', 'Syncing…');
+      load().then(() => {
+        renderDashboard();
+        renderTransactions();
+        setSyncStatus('ok', 'Synced');
+      }).catch(() => {
+        setSyncStatus('err', 'Offline');
+      });
     }
 
     // ============================================================

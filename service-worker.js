@@ -1,10 +1,10 @@
-const CACHE_NAME = 'moneyflow-v1';
+const CACHE_NAME = 'moneyflow-v2'; // bump version to force refresh
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/finance-manager/',
+  '/finance-manager/index.html',
+  '/finance-manager/manifest.json',
+  '/finance-manager/icon-192.png',
+  '/finance-manager/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
