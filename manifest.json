@@ -1,7 +1,8 @@
 {
   "name": "MoneyFlow",
   "short_name": "MoneyFlow",
-  "start_url": "/",
+  "start_url": "/finance-manager/",
+  "scope": "/finance-manager/",
   "display": "standalone",
   "background_color": "#0a0e1a",
   "theme_color": "#c9a84c",
