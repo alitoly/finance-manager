@@ -1071,6 +1071,86 @@
       outline: none;
     }
 
+    /* CATEGORY SPENDING LOOKUP */
+    .lookup-widget {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-top: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .lookup-widget::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--purple), var(--blue));
+    }
+
+    .lookup-controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      gap: 14px;
+      align-items: flex-end;
+    }
+
+    .lookup-result {
+      margin-top: 20px;
+      padding: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .lookup-result.visible {
+      display: block;
+    }
+
+    .lookup-result-amount {
+      font-family: 'DM Mono', monospace;
+      font-size: 32px;
+      font-weight: 500;
+      background: linear-gradient(135deg, var(--purple), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 8px 0;
+    }
+
+    .lookup-result-meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .lookup-meta-item {
+      font-size: 12px;
+      color: var(--text2);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    @media (max-width: 900px) {
+      .lookup-controls {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .lookup-controls {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* SCROLLBAR */
     ::-webkit-scrollbar {
       width: 6px;
@@ -1909,7 +1989,39 @@
             <div id="budget-util"></div>
           </div>
         </div>
+
+        <!-- Category Spending Lookup -->
+        <div class="lookup-widget" style="margin-top:20px">
+          <div class="card-title">🔍 Category Spending Lookup</div>
+          <p style="color:var(--text3);font-size:12px;margin-bottom:16px">Select a category and date range to see total spending.</p>
+          <div class="lookup-controls">
+            <div class="form-group">
+              <label>Category</label>
+              <select id="lookup-category">
+                <option value="">Select category…</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>From Date</label>
+              <input type="date" id="lookup-from" />
+            </div>
+            <div class="form-group">
+              <label>To Date</label>
+              <input type="date" id="lookup-to" />
+            </div>
+            <div class="form-group">
+              <label>&nbsp;</label>
+              <button class="btn btn-gold" onclick="performCategoryLookup()" style="white-space:nowrap">🔎 Calculate</button>
+            </div>
+          </div>
+          <div class="lookup-result" id="lookup-result">
+            <div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3)">Total Spent</div>
+            <div class="lookup-result-amount" id="lookup-result-amount">0.000 OMR</div>
+            <div class="lookup-result-meta" id="lookup-result-meta"></div>
+          </div>
+        </div>
       </div>
+
 
       <!-- ====== CATEGORIES ====== -->
       <div class="page" id="page-categories">
@@ -2331,20 +2443,80 @@
       const cur = state.settings.currency || 'OMR';
       return (parseFloat(n) || 0).toFixed(3) + ' ' + cur;
     }
-    function monthKey(d) { return d.slice(0, 7); }
+
+    // Custom month cycle: each "month" runs from the 23rd to the 22nd of the next month.
+    // e.g., "April" cycle = Apr 23 → May 22
+    //        "May"   cycle = May 23 → Jun 22
+    function getCustomCycleRange(monthKey) {
+      const [y, m] = monthKey.split('-').map(Number);
+      // Start: 23rd of the selected month
+      const startDate = new Date(y, m - 1, 23);
+      // End: 22nd of the next month
+      const endDate = new Date(y, m, 22);
+      const startStr = startDate.getFullYear() + '-' +
+        String(startDate.getMonth() + 1).padStart(2, '0') + '-' +
+        String(startDate.getDate()).padStart(2, '0');
+      const endStr = endDate.getFullYear() + '-' +
+        String(endDate.getMonth() + 1).padStart(2, '0') + '-' +
+        String(endDate.getDate()).padStart(2, '0');
+      return { start: startStr, end: endStr };
+    }
+
+    // Assign a transaction date to its custom cycle month key.
+    // If day >= 23, it belongs to that calendar month's cycle.
+    // If day <= 22, it belongs to the previous calendar month's cycle.
+    function customMonthKey(dateStr) {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      if (d >= 23) {
+        // Belongs to this calendar month's cycle
+        return String(y) + '-' + String(m).padStart(2, '0');
+      } else {
+        // Belongs to previous calendar month's cycle
+        let prevMonth = m - 1;
+        let prevYear = y;
+        if (prevMonth < 1) { prevMonth = 12; prevYear--; }
+        return String(prevYear) + '-' + String(prevMonth).padStart(2, '0');
+      }
+    }
+
+    function monthKey(d) { return customMonthKey(d); }
+
     function monthLabel(k) {
       const [y, m] = k.split('-');
-      return new Date(y, m - 1, 1).toLocaleString('default', { month: 'short', year: 'numeric' });
+      const monthName = new Date(y, m - 1, 1).toLocaleString('default', { month: 'short' });
+      // Show the cycle range in the label
+      const range = getCustomCycleRange(k);
+      const endMonth = new Date(y, m, 1).toLocaleString('default', { month: 'short' });
+      return `${monthName} ${y} (23rd–22nd)`;
     }
+
     function allMonths() {
       const keys = [...new Set(state.transactions.map(t => monthKey(t.date)))].sort().reverse();
       if (!keys.length) {
         const now = new Date();
-        keys.push(now.toISOString().slice(0, 7));
+        // Current custom cycle
+        const day = now.getDate();
+        let cm = now.getMonth() + 1;
+        let cy = now.getFullYear();
+        if (day < 23) {
+          cm--;
+          if (cm < 1) { cm = 12; cy--; }
+        }
+        keys.push(cy + '-' + String(cm).padStart(2, '0'));
       }
       return keys;
     }
-    function currentMonthKey() { return new Date().toISOString().slice(0, 7); }
+    function currentMonthKey() {
+      const now = new Date();
+      const day = now.getDate();
+      let cm = now.getMonth() + 1;
+      let cy = now.getFullYear();
+      if (day < 23) {
+        cm--;
+        if (cm < 1) { cm = 12; cy--; }
+      }
+      return cy + '-' + String(cm).padStart(2, '0');
+    }
     function catById(id) { return state.categories.find(c => c.id === id) || { name: id, icon: '📌' }; }
     function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
     function toast(msg, type = 'success') {
@@ -2387,7 +2559,9 @@
     function renderDashboard() {
       populateMonthDropdowns();
       const selMonth = document.getElementById('dash-month-filter').value || currentMonthKey();
-      const txs = state.transactions.filter(t => monthKey(t.date) === selMonth);
+      // Filter transactions using custom cycle date range
+      const cycleRange = getCustomCycleRange(selMonth);
+      const txs = state.transactions.filter(t => t.date >= cycleRange.start && t.date <= cycleRange.end);
 
       const income = txs.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
       const expense = txs.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
@@ -2467,7 +2641,8 @@
     }
 
     function renderPieChart(selMonth) {
-      const txs = state.transactions.filter(t => t.type === 'expense' && monthKey(t.date) === selMonth);
+      const cycleRange = getCustomCycleRange(selMonth);
+      const txs = state.transactions.filter(t => t.type === 'expense' && t.date >= cycleRange.start && t.date <= cycleRange.end);
       const catMap = {};
       txs.forEach(t => {
         const cat = catById(t.category);
@@ -2630,7 +2805,10 @@
       let txs = [...state.transactions].sort((a, b) => b.date.localeCompare(a.date));
       if (type) txs = txs.filter(t => t.type === type);
       if (cat) txs = txs.filter(t => t.category === cat);
-      if (month) txs = txs.filter(t => monthKey(t.date) === month);
+      if (month) {
+        const cycleRange = getCustomCycleRange(month);
+        txs = txs.filter(t => t.date >= cycleRange.start && t.date <= cycleRange.end);
+      }
       if (search) txs = txs.filter(t => {
         const c = catById(t.category);
         return (c.name + ' ' + t.source + ' ' + t.notes + ' ' + (t.tags || []).join(' ')).toLowerCase().includes(search);
@@ -2749,7 +2927,11 @@
     function renderAnalytics() {
       populateMonthDropdowns();
       const sel = document.getElementById('analytics-month').value || currentMonthKey();
-      const txs = state.transactions.filter(t => monthKey(t.date) === sel);
+      // Filter transactions using custom cycle date range
+      const cycleRange = getCustomCycleRange(sel);
+      const txs = state.transactions.filter(t => t.date >= cycleRange.start && t.date <= cycleRange.end);
+      // Also populate the category lookup dropdown
+      populateLookupCategories();
 
       const income = txs.filter(t => t.type === 'income').reduce((a, t) => a + t.amount, 0);
       const expense = txs.filter(t => t.type === 'expense').reduce((a, t) => a + t.amount, 0);
@@ -2798,17 +2980,18 @@
     </div>
   `).join('') || '<p style="color:var(--text3)">No expense data</p>';
 
-      // Daily chart
-      const [y, m] = sel.split('-');
-      const daysInMonth = new Date(y, m, 0).getDate();
-      const dailyExp = Array.from({ length: daysInMonth }, (_, i) => {
-        const d = String(i + 1).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
+      // Daily chart — use the custom cycle date range
+      const cycleDates = [];
+      const cStart = new Date(cycleRange.start);
+      const cEnd = new Date(cycleRange.end);
+      for (let dd = new Date(cStart); dd <= cEnd; dd.setDate(dd.getDate() + 1)) {
+        cycleDates.push(dd.getFullYear() + '-' + String(dd.getMonth() + 1).padStart(2, '0') + '-' + String(dd.getDate()).padStart(2, '0'));
+      }
+      const daysInMonth = cycleDates.length;
+      const dailyExp = cycleDates.map(dateStr => {
         return txs.filter(t => t.type === 'expense' && t.date === dateStr).reduce((a, t) => a + t.amount, 0);
       });
-      const dailyInc = Array.from({ length: daysInMonth }, (_, i) => {
-        const d = String(i + 1).padStart(2, '0');
-        const dateStr = `${y}-${m}-${d}`;
+      const dailyInc = cycleDates.map(dateStr => {
         return txs.filter(t => t.type === 'income' && t.date === dateStr).reduce((a, t) => a + t.amount, 0);
       });
 
@@ -2821,7 +3004,7 @@
       charts.daily = new Chart(dc, {
         type: 'bar',
         data: {
-          labels: Array.from({ length: daysInMonth }, (_, i) => i + 1),
+          labels: cycleDates.map(d => { const parts = d.split('-'); return parseInt(parts[2]) + '/' + parseInt(parts[1]); }),
           datasets: [
             { label: 'Expense', data: dailyExp, backgroundColor: 'rgba(248,113,113,0.7)', borderRadius: 4 },
             { label: 'Income', data: dailyInc, backgroundColor: 'rgba(52,211,153,0.6)', borderRadius: 4 }
@@ -3382,6 +3565,85 @@
       save();
       renderFixedBills();
       toast('Bill removed');
+    }
+
+    // ============================================================
+    //  CATEGORY SPENDING LOOKUP
+    // ============================================================
+    function populateLookupCategories() {
+      const sel = document.getElementById('lookup-category');
+      if (!sel) return;
+      const prev = sel.value;
+      sel.innerHTML = '<option value="">Select category…</option>';
+      // Group by type
+      const types = [
+        { label: '💸 Expenses', type: 'expense' },
+        { label: '💰 Income', type: 'income' },
+        { label: '🏦 Savings', type: 'savings' }
+      ];
+      types.forEach(grp => {
+        const cats = state.categories.filter(c => c.type === grp.type);
+        if (cats.length) {
+          const optgroup = document.createElement('optgroup');
+          optgroup.label = grp.label;
+          cats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.icon + ' ' + c.name;
+            optgroup.appendChild(opt);
+          });
+          sel.appendChild(optgroup);
+        }
+      });
+      // Also add an "All Expenses" and "All Income" option
+      const allGroup = document.createElement('optgroup');
+      allGroup.label = '📊 Aggregates';
+      ['expense', 'income', 'savings'].forEach(type => {
+        const opt = document.createElement('option');
+        opt.value = '__all_' + type;
+        opt.textContent = (type === 'expense' ? '💸' : type === 'income' ? '💰' : '🏦') + ' All ' + type.charAt(0).toUpperCase() + type.slice(1);
+        allGroup.appendChild(opt);
+      });
+      sel.appendChild(allGroup);
+      sel.value = prev;
+    }
+
+    function performCategoryLookup() {
+      const catId = document.getElementById('lookup-category').value;
+      const fromDate = document.getElementById('lookup-from').value;
+      const toDate = document.getElementById('lookup-to').value;
+      const resultEl = document.getElementById('lookup-result');
+      const amountEl = document.getElementById('lookup-result-amount');
+      const metaEl = document.getElementById('lookup-result-meta');
+
+      if (!catId) { toast('Please select a category', 'error'); return; }
+      if (!fromDate || !toDate) { toast('Please select both dates', 'error'); return; }
+      if (fromDate > toDate) { toast('From date must be before To date', 'error'); return; }
+
+      let txs = state.transactions.filter(t => t.date >= fromDate && t.date <= toDate);
+
+      let categoryLabel = '';
+      if (catId.startsWith('__all_')) {
+        const type = catId.replace('__all_', '');
+        txs = txs.filter(t => t.type === type);
+        categoryLabel = 'All ' + type.charAt(0).toUpperCase() + type.slice(1);
+      } else {
+        txs = txs.filter(t => t.category === catId);
+        const cat = catById(catId);
+        categoryLabel = cat.icon + ' ' + cat.name;
+      }
+
+      const total = txs.reduce((a, t) => a + t.amount, 0);
+      const count = txs.length;
+
+      amountEl.textContent = fmt(total);
+      metaEl.innerHTML = `
+        <div class="lookup-meta-item">📁 ${categoryLabel}</div>
+        <div class="lookup-meta-item">📋 ${count} transaction${count !== 1 ? 's' : ''}</div>
+        <div class="lookup-meta-item">📅 ${fromDate} → ${toDate}</div>
+        ${count > 0 ? `<div class="lookup-meta-item">📊 Avg: ${fmt(total / count)}/entry</div>` : ''}
+      `;
+      resultEl.classList.add('visible');
     }
 
     // ============================================================
